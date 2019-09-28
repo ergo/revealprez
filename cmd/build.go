@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/ergo/revealprez/templates"
 	"github.com/spf13/cobra"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -114,14 +115,17 @@ func copyAssets(sourceDir string, destinationDir string) {
 					return err
 				}
 			} else if info.Mode().IsRegular() {
-				content, err := ioutil.ReadFile(currPath)
+				source, err := os.Open(currPath)
 				if err != nil {
 					return err
 				}
-				err = ioutil.WriteFile(destinationPath, content, info.Mode())
+				defer source.Close()
+				destination, err := os.Create(destinationPath)
 				if err != nil {
 					return err
 				}
+				defer destination.Close()
+				_, err = io.Copy(destination, source)
 			}
 			return err
 		})
