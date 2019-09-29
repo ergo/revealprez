@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"archive/zip"
 	"bytes"
 	"fmt"
 	"github.com/ergo/revealprez/templates"
@@ -8,6 +9,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"os"
 	"path"
 	"path/filepath"
@@ -31,19 +33,22 @@ func init() {
 	// and all subcommands, e.g.:
 	buildCmd.Flags().String("input-dir", "", "Input directory")
 	buildCmd.Flags().String("output-dir", "out", "Output directory")
-	buildCmd.Flags().String("separator", "----SLIDE----", "Help message for toggle")
+	buildCmd.Flags().String("separator", "----SLIDE----", "Separator for slides in presentation")
 	buildCmd.Flags().String("filename", "index.md", "Presentation filename")
 	buildCmd.Flags().String("assets-dir", "assets", "Directory containing all the assets to include")
 	buildCmd.Flags().Bool("watcher", false, "Should watch the directory for changes? (default: false)")
+	buildCmd.Flags().String("revealjs-version", "3.8.0", "What version of reveal to grab")
 }
 
 type ConfigBuilder struct {
-	InputDir  string
-	OutputDir string
-	Separator string
-	Filename  string
-	AssetsDir string
-	Watcher   bool
+	InputDir            string
+	OutputDir           string
+	Separator           string
+	Filename            string
+	AssetsDir           string
+	Watcher             bool
+	RevealJSTemplateDir string
+	RevealJSVersion     string
 }
 
 type Slide struct {
@@ -61,6 +66,15 @@ func (s Slide) RenderedSlide() string {
 		%s
 	</textarea>
 </section>`, s.Markup)
+}
+
+type HTTPDownloadError struct {
+	URL        string
+	StatusCode int
+}
+
+func (e *HTTPDownloadError) Error() string {
+	return fmt.Sprintf("Got %v for %v", e.StatusCode, e.URL)
 }
 
 func savePresentation(config ConfigBuilder, slides []Slide) {
@@ -101,11 +115,11 @@ func loadSlides(config ConfigBuilder) []Slide {
 	return slides
 }
 
-func copyAssets(sourceDir string, destinationDir string) {
+func copyAssets(sourceDir string, destinationDir string) error {
 	err := filepath.Walk(sourceDir,
 		func(currPath string, info os.FileInfo, err error) error {
 			if err != nil {
-				log.Fatal(err)
+				return err
 			}
 			basePath, err := filepath.Rel(sourceDir, currPath)
 			destinationPath := filepath.Join(destinationDir, basePath)
@@ -129,9 +143,90 @@ func copyAssets(sourceDir string, destinationDir string) {
 			}
 			return err
 		})
-	if err != nil {
-		log.Fatal(err)
+	return err
+}
+
+var getRevealJS = func(config ConfigBuilder) error {
+	downloadURL := fmt.Sprintf("https://github.com/hakimel/reveal.js/archive/%s.zip", config.RevealJSVersion)
+	destinationFile, _ := filepath.Abs(fmt.Sprintf("revealjs.%s.zip", config.RevealJSVersion))
+
+	_, err := os.Stat(destinationFile)
+	if err == nil {
+		return nil
 	}
+
+	fmt.Printf("Downloading %s...\n", downloadURL)
+	resp, err := http.Get(downloadURL)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode > 300 {
+		return &HTTPDownloadError{downloadURL, resp.StatusCode}
+	}
+
+	defer resp.Body.Close()
+
+	destination, err := os.Create(destinationFile)
+	if err != nil {
+		return err
+	}
+	defer destination.Close()
+	_, err = io.Copy(destination, resp.Body)
+	return err
+
+}
+
+var unpackRevealJS = func(config ConfigBuilder) error {
+	files, err := ioutil.ReadDir(config.RevealJSTemplateDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if len(files) > 0 {
+		return nil
+	}
+
+	err = os.MkdirAll(config.RevealJSTemplateDir, 0777)
+	if err != nil && !os.IsExist(err) {
+		return err
+	}
+
+	fmt.Println("Unpacking to revealjs_template")
+	destinationFile, _ := filepath.Abs(fmt.Sprintf("revealjs.%s.zip", config.RevealJSVersion))
+	r, err := zip.OpenReader(destinationFile)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	for _, f := range r.File {
+		err := func() error {
+			newName, err := filepath.Rel(fmt.Sprintf("reveal.js-%s", config.RevealJSVersion), f.Name)
+			destinationPath := filepath.Join(config.RevealJSTemplateDir, newName)
+			rc, err := f.Open()
+			info := f.FileInfo()
+			defer rc.Close()
+			if err != nil {
+				return err
+			}
+			if info.IsDir() {
+				err := os.MkdirAll(destinationPath, info.Mode())
+				if err != nil && !os.IsExist(err) {
+					return err
+				}
+			} else if info.Mode().IsRegular() {
+				destination, err := os.Create(destinationPath)
+				if err != nil {
+					return err
+				}
+				defer destination.Close()
+				_, err = io.Copy(destination, rc)
+			}
+			return err
+		}()
+		if err != nil {
+			return err
+		}
+	}
+	return err
 }
 
 func runFunc(cmd *cobra.Command, args []string) {
@@ -142,21 +237,39 @@ func runFunc(cmd *cobra.Command, args []string) {
 	config.Filename, _ = cmd.Flags().GetString("filename")
 	config.AssetsDir, _ = cmd.Flags().GetString("assets-dir")
 	config.Watcher, _ = cmd.Flags().GetBool("watcher")
+	config.RevealJSVersion, _ = cmd.Flags().GetString("revealjs-version")
 	config.InputDir, _ = filepath.Abs(config.InputDir)
 	config.OutputDir, _ = filepath.Abs(config.OutputDir)
+	config.RevealJSTemplateDir, _ = filepath.Abs("revealjs_template")
 	fmt.Printf("Input directory: %s\n", config.InputDir)
 	fmt.Printf("Output directory: %s\n", config.OutputDir)
 	assetDir := path.Join(config.InputDir, config.AssetsDir)
 	assetOutputDir := path.Join(config.OutputDir, config.AssetsDir)
+
 	_, err := os.Stat(assetDir)
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatal(err)
 	} else if !os.IsNotExist(err) {
-		copyAssets(assetDir, assetOutputDir)
+		err = copyAssets(assetDir, assetOutputDir)
+		if err != nil {
+			log.Fatal(err)
+		}
 	} else {
 		fmt.Printf("Assets dir not found: %s \n", assetDir)
 	}
-	copyAssets(path.Join(".", "revealjs_template"), config.OutputDir)
+
+	err = getRevealJS(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = unpackRevealJS(config)
+	if err != nil {
+		log.Fatal(err)
+	}
+	err = copyAssets(config.RevealJSTemplateDir, config.OutputDir)
+	if err != nil {
+		log.Fatal(err)
+	}
 	slides := loadSlides(config)
 	fmt.Printf("Generating presentation...")
 	savePresentation(config, slides)
