@@ -3,6 +3,7 @@ module github.com/ergo/revealprez
 go 1.13
 
 require (
+	github.com/fsnotify/fsnotify v1.4.7
 	github.com/magiconair/properties v1.8.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/pelletier/go-toml v1.4.0 // indirect
