@@ -5,7 +5,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/ergo/revealprez/templates"
-	_ "github.com/fsnotify/fsnotify"
+	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 	"io"
 	"io/ioutil"
@@ -15,6 +15,7 @@ import (
 	"path"
 	"path/filepath"
 	"text/template"
+	"time"
 )
 
 func BuildFunc(cmd *cobra.Command, args []string) {
@@ -47,8 +48,15 @@ func BuildFunc(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	if config.Watcher {
+		watchInputDir(assetDir, assetOutputDir, config)
+	} else {
+		buildPresentation(assetDir, assetOutputDir, config)
+	}
+}
 
-	_, err = os.Stat(assetDir)
+func buildPresentation(assetDir string, assetOutputDir string, config ConfigBuilder) {
+	_, err := os.Stat(assetDir)
 	if err != nil && !os.IsNotExist(err) {
 		log.Fatal(err)
 	} else if !os.IsNotExist(err) {
@@ -60,42 +68,55 @@ func BuildFunc(cmd *cobra.Command, args []string) {
 		fmt.Printf("Assets dir not found: %s \n", assetDir)
 	}
 
-	//watcher, err := fsnotify.NewWatcher()
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//defer watcher.Close()
-	//
-	//done := make(chan bool)
-	//go func() {
-	//	for {
-	//		select {
-	//		case event, ok := <-watcher.Events:
-	//			if !ok {
-	//				return
-	//			}
-	//			log.Println("event:", event)
-	//			if event.Op&fsnotify.Write == fsnotify.Write {
-	//				log.Println("modified file:", event.Name)
-	//			}
-	//		case err, ok := <-watcher.Errors:
-	//			if !ok {
-	//				return
-	//			}
-	//			log.Println("error:", err)
-	//		}
-	//	}
-	//}()
-	//
-	//err = watcher.Add("/tmp")
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//<-done
-
+	fmt.Printf("Generating presentation...\n")
 	slides := loadSlides(config)
-	fmt.Printf("Generating presentation...")
 	savePresentation(config, slides)
+	fmt.Printf("Done\n")
+}
+
+func watchInputDir(assetDir string, assetOutputDir string, config ConfigBuilder) {
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer watcher.Close()
+
+	buildPresentation(assetDir, assetOutputDir, config)
+
+	fmt.Printf("Started listening for changes in %v, press CTRL+C to stop\n", config.InputDir)
+
+	done := make(chan bool)
+
+	go func() {
+		lastRun := time.Now()
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
+				_ = event
+				if time.Since(lastRun) > time.Second*2 {
+					lastRun = time.Now()
+					buildPresentation(assetDir, assetOutputDir, config)
+				}
+
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				log.Println("error:", err)
+			}
+		}
+		fmt.Print("MY EVENT\n")
+	}()
+
+	err = watcher.Add(config.InputDir)
+	if err != nil {
+		log.Fatal(err)
+	}
+	<-done
+	fmt.Println("DONE")
 }
 
 type ConfigBuilder struct {
