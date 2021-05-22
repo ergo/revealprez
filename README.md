@@ -12,11 +12,13 @@ You can also use builtin server for your presentation
 
 Usage:
 
+First build the binary either directly or by `build.sh` script (min. go version required is 1.16)
+
     # build the presentation
-    ./revealprez build --input-dir=presentation
+    ./revealprez_linux_amd64 build --input-dir=presentation
     # will generate `presentation_out` directory for serving
     # You can now serve the presentation
-    ./revealprez serve
+    ./revealprez_linux_amd64 serve
 
 # License
 
