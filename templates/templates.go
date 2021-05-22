@@ -8,20 +8,12 @@ const IndexTemplate = `<!doctype html>
 
     <title>Presentation</title>
 
-    <link rel="stylesheet" href="css/reveal.css">
-    <link rel="stylesheet" href="css/theme/black.css">
+    <link rel="stylesheet" href="dist/reveal.css">
+    <link rel="stylesheet" href="dist/theme/black.css">
 
     <!-- Theme used for syntax highlighting of code -->
-    <link rel="stylesheet" href="lib/css/zenburn.css">
+    <link rel="stylesheet" href="dist/theme/zenburn.css">
 
-    <!-- Printing and PDF exports -->
-    <script>
-        var link = document.createElement( 'link' );
-        link.rel = 'stylesheet';
-        link.type = 'text/css';
-        link.href = window.location.search.match( /print-pdf/gi ) ? 'css/print/pdf.css' : 'css/print/paper.css';
-        document.getElementsByTagName( 'head' )[0].appendChild( link );
-    </script>
 </head>
 <body>
 <div class="reveal">
@@ -31,8 +23,9 @@ const IndexTemplate = `<!doctype html>
     </div>
 </div>
 
-<script src="lib/js/head.min.js"></script>
-<script src="js/reveal.js"></script>
+<script src="dist/reveal.js"></script>
+<script src="plugin/markdown/markdown.js"></script>
+<script src="plugin/highlight/highlight.js"></script>
 
 <script>
     // More info about config & dependencies:
@@ -41,12 +34,7 @@ const IndexTemplate = `<!doctype html>
     Reveal.initialize({
         slideNumber: true,
         showNotes: true,
-        dependencies: [
-            { src: 'plugin/markdown/marked.js' },
-            { src: 'plugin/markdown/markdown.js' },
-            { src: 'plugin/notes/notes.js', async: true },
-            { src: 'plugin/highlight/highlight.js', async: true, callback: function() { hljs.initHighlightingOnLoad(); } }
-        ]
+        plugins: [ RevealMarkdown, RevealHighlight ]
     });
 </script>
 </body>

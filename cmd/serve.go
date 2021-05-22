@@ -16,6 +16,6 @@ var serveCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(serveCmd)
 
-	serveCmd.Flags().String("output-dir", "out", "Help message for toggle")
+	serveCmd.Flags().String("output-dir", "presentation_out", "Help message for toggle")
 	serveCmd.Flags().Int("port", 8080, "What port to use for serving")
 }
