@@ -12,7 +12,8 @@ You can also use builtin server for your presentation
 
 Usage:
 
-First build the binary either directly or by `build.sh` script (min. go version required is 1.16)
+First build the binary either directly or by `build.sh` script (min. go version required is 1.16). Sh script will build
+binaries for windows, linux and OSX.
 
     # build the presentation
     ./revealprez_linux_amd64 build --input-dir=presentation
