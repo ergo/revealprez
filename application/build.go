@@ -2,9 +2,8 @@ package application
 
 import (
 	"archive/zip"
-	"bytes"
+	_ "embed"
 	"fmt"
-	"github.com/ergo/revealprez/templates"
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cobra"
 	"io"
@@ -14,15 +13,21 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"text/template"
 	"time"
 )
+
+//go:embed templates/index.go.tmpl
+var indexPageTemplate string
 
 func BuildFunc(cmd *cobra.Command, args []string) {
 	config := ConfigBuilder{}
 	config.InputDir, _ = cmd.Flags().GetString("input-dir")
 	config.OutputDir, _ = cmd.Flags().GetString("output-dir")
 	config.Separator, _ = cmd.Flags().GetString("separator")
+	config.EmbedSeparator, _ = cmd.Flags().GetString("embed-separator")
 	config.Filename, _ = cmd.Flags().GetString("filename")
 	config.AssetsDir, _ = cmd.Flags().GetString("assets-dir")
 	config.Watcher, _ = cmd.Flags().GetBool("watcher")
@@ -123,6 +128,7 @@ type ConfigBuilder struct {
 	InputDir            string
 	OutputDir           string
 	Separator           string
+	EmbedSeparator      string
 	Filename            string
 	AssetsDir           string
 	Watcher             bool
@@ -131,7 +137,7 @@ type ConfigBuilder struct {
 }
 
 type Slide struct {
-	Markup []byte
+	Markup string
 	Index  int
 }
 
@@ -140,11 +146,7 @@ func (s Slide) String() string {
 }
 
 func (s Slide) RenderedSlide() string {
-	return fmt.Sprintf(`<section data-markdown>
-	<textarea data-template>
-		%s
-	</textarea>
-</section>`, s.Markup)
+	return fmt.Sprintf(`<section data-markdown><textarea data-template> %s </textarea></section>`, s.Markup)
 }
 
 type HTTPDownloadError struct {
@@ -157,7 +159,7 @@ func (e *HTTPDownloadError) Error() string {
 }
 
 func savePresentation(config ConfigBuilder, slides []Slide) {
-	var indexTemplate, err = template.New("index").Parse(templates.IndexTemplate)
+	var indexTemplate, err = template.New("index").Parse(indexPageTemplate)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -177,14 +179,28 @@ func savePresentation(config ConfigBuilder, slides []Slide) {
 }
 
 func loadSlides(config ConfigBuilder) []Slide {
-	content, err := ioutil.ReadFile(filepath.Join(config.InputDir, config.Filename))
+	contentBytes, err := os.ReadFile(filepath.Join(config.InputDir, config.Filename))
 	if err != nil {
 		log.Fatal(err)
 	}
-	pages := bytes.Split(content, []byte("----SLIDE----"))
+	content := string(contentBytes)
+	pages := strings.Split(content, config.Separator)
 	var slides []Slide
 
 	for index, page := range pages {
+		re := regexp.MustCompile(config.EmbedSeparator)
+
+		replaceEmbed := func(matched string) string {
+			matchedFilename := strings.TrimSpace(re.FindStringSubmatch(matched)[1])
+			filePath := filepath.Join(config.InputDir, strings.TrimSpace(matchedFilename))
+			subcontentBytes, err := os.ReadFile(filePath)
+			if err != nil {
+				panic(err)
+			}
+			return string(subcontentBytes)
+		}
+
+		page := re.ReplaceAllStringFunc(page, replaceEmbed)
 		slide := Slide{
 			Markup: page,
 			Index:  index + 1,
@@ -269,7 +285,7 @@ var unpackRevealJS = func(config ConfigBuilder) error {
 		return err
 	}
 
-	fmt.Println("Unpacking to revealjs_template")
+	fmt.Println("Unpacking RevealJS to revealjs_template")
 	destinationFile, _ := filepath.Abs(fmt.Sprintf("revealjs.%s.zip", config.RevealJSVersion))
 	r, err := zip.OpenReader(destinationFile)
 	if err != nil {

@@ -1,6 +1,4 @@
-package templates
-
-const IndexTemplate = `<!doctype html>
+<!doctype html>
 <html>
 <head>
     <meta charset="utf-8">
@@ -18,8 +16,9 @@ const IndexTemplate = `<!doctype html>
 <body>
 <div class="reveal">
     <div class="slides">
-        {{- range $index, $element := . -}} {{ $element.RenderedSlide }}
-		{{- end -}}
+        {{ range $index, $element := . }}
+{{- $element.RenderedSlide }}
+        {{ end }}
     </div>
 </div>
 
@@ -38,4 +37,4 @@ const IndexTemplate = `<!doctype html>
     });
 </script>
 </body>
-</html>`
+</html>

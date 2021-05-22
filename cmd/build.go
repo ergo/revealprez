@@ -23,6 +23,7 @@ func init() {
 	buildCmd.Flags().String("input-dir", "presentation", "Input directory")
 	buildCmd.Flags().String("output-dir", "presentation_out", "Output directory")
 	buildCmd.Flags().String("separator", "----SLIDE----", "Separator for slides in presentation")
+	buildCmd.Flags().String("embed-separator", "----SLIDE_EMBED:(.*)----", "Separator for embedding slides in presentation (needs to be valid golang regexp)")
 	buildCmd.Flags().String("filename", "index.md", "Presentation filename")
 	buildCmd.Flags().String("assets-dir", "assets", "Directory containing all the assets to include (inside the input dir)")
 	buildCmd.Flags().Bool("watcher", false, "Should watch the directory for changes? (default: false)")
