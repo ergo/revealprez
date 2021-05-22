@@ -20,7 +20,10 @@ func ServePresentation(OutputDir string, Port int) {
 
 	fs := http.FileServer(http.Dir(OutputDir))
 	http.Handle("/", fs)
-	http.ListenAndServe(fmt.Sprintf(":%d", Port), nil)
+	err := http.ListenAndServe(fmt.Sprintf(":%d", Port), nil)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 type ConfigServer struct {
