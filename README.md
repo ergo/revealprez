@@ -3,7 +3,7 @@
 Simple presentation builder using RevealJS and go.
 
 You need to place an index.md file in your presentation directory that has the contents of slides
-separated using `----SLIDE----` separator.
+separated using `----SLIDE----` separator (embedding files is also possible). 
 
 Consult the demo project in `presentation` directory.
 
@@ -13,9 +13,9 @@ You can also use builtin server for your presentation
 Usage:
 
     # build the presentation
-    ./revealprez build --input-dir=presentation_name
-
-    # serve the presentation
+    ./revealprez build --input-dir=presentation
+    # will generate `presentation_out` directory for serving
+    # You can now serve the presentation
     ./revealprez serve
 
 # License
